@@ -1,0 +1,64 @@
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+
+# 尝试用不同的编码格式读取文件
+file_path = 'China_City_Area_2019.csv'
+encodings = ['utf-8', 'gbk', 'latin1']
+
+for encoding in encodings:
+    try:
+        data = pd.read_csv(file_path, encoding=encoding)
+        print(f"Successfully read the file with encoding: {encoding}")
+        break
+    except UnicodeDecodeError:
+        print(f"Failed to read the file with encoding: {encoding}")
+
+# 选取需要的指标列
+columns = ['行政区域土地面积_平方公里_全市', '地区生产总值_当年价格_亿元_全市', '普通高等学校_所_全市', '公共图书馆图书藏量_千册_市辖区', '公路客运量_万人_全市', '生活垃圾无害化处理率_百分比_全市','博物馆数_个_全市','体育场馆数_个_全市']
+cities = data['市']
+data = data[columns]
+
+# 数据标准化
+data_std = (data - data.min()) / (data.max() - data.min())
+
+# 熵权法计算权重
+P = data_std / data_std.sum(axis=0)
+E = -np.sum(P * np.log(P + 1e-9), axis=0) / np.log(len(data))
+D = 1 - E
+W = D / D.sum()
+
+# TOPSIS法计算综合得分
+V = data_std * W
+Z = np.sqrt(np.sum(V**2, axis=0))
+ideal_solution = np.max(V, axis=0)
+negative_ideal_solution = np.min(V, axis=0)
+distance_to_ideal = np.sqrt(np.sum((V - ideal_solution)**2, axis=1))
+distance_to_negative_ideal = np.sqrt(np.sum((V - negative_ideal_solution)**2, axis=1))
+scores = distance_to_negative_ideal / (distance_to_ideal + distance_to_negative_ideal)
+
+# 将综合得分添加到数据框中
+data['Score'] = scores
+data['City'] = cities
+
+# 按照综合得分排序，选出前50个城市
+top_50_cities = data.sort_values(by='Score', ascending=False).head(50)
+
+# 输出前50个城市及其分数
+top_50_cities_list = top_50_cities[['City', 'Score']].values.tolist()
+print(top_50_cities_list)
+
+# 生成柱形图
+plt.figure(figsize=(12, 8))
+plt.barh(top_50_cities['City'], top_50_cities['Score'], color='skyblue')
+plt.rcParams['font.sans-serif'] = ['SimHei'] # 显示中文
+plt.rcParams['axes.unicode_minus'] = False # 正常显示负号
+plt.xlabel('综合得分')
+plt.ylabel('城市')
+plt.title('最令外国游客向往的50个城市')
+plt.gca().invert_yaxis()  # 反转Y轴，使得分最高的城市在最上面
+plt.show()
+
+# 输出前50个城市
+top_50_cities_list = top_50_cities['City'].tolist()
+print(top_50_cities_list)
